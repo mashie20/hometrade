@@ -231,11 +231,11 @@ async function brokerKeys() {
 // stable per-user paper account row (hook creates it at signup; this heals
 // accounts that predate the hook)
 async function getPaperAccount(u, db) {
-  const rows = await db.select(
+  const rows = await db("accounts").select(
     "?user_id=eq." + u.sub + "&mode=eq.paper&limit=1",
   );
   if (rows.length) return rows[0];
-  return await db.insert({
+  return await db("accounts").insert({
     user_id: u.sub,
     mode: "paper",
     broker: "alpaca",
@@ -623,7 +623,7 @@ async function route(req, res) {
       if (!u) return;
       const bk = await getBroker(u);
       if (!bk.configured) return jsonRes(res, 200, { configured: false });
-      const db = (t) => supabase.db(t, u.token);
+      const db = (t, tok) => supabase.db(t, tok ?? u.token);
       const acc = await getPaperAccount(u, db);
       const r = await reconcileBroker(u, db, bk, acc?.id ?? null);
       return jsonRes(res, 200, {
@@ -671,7 +671,7 @@ async function route(req, res) {
           expected,
         });
       const orderId = randomUUID();
-      const db = (t) => supabase.db(t, u.token);
+      const db = (t, tok) => supabase.db(t, tok ?? u.token);
       const acc = await getPaperAccount(u, db);
       let row;
       try {
@@ -742,7 +742,7 @@ async function route(req, res) {
       } catch (e) {
         return jsonRes(res, 502, { ok: false, error: e.message });
       }
-      const db = (t) => supabase.db(t, u.token);
+      const db = (t, tok) => supabase.db(t, tok ?? u.token);
       await db("orders")
         .update(
           { status: "canceled" },
