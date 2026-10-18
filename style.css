@@ -380,3 +380,135 @@ ul {
   font-size: 11px;
   line-height: 1.5;
 }
+
+/* ---- auth + broker (0.3.0) ---- */
+#auth-chip {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: 8px;
+}
+#auth-chip .who {
+  font-size: 12px;
+  color: var(--dim);
+}
+.badge.paper {
+  color: #0f1317;
+  background: var(--up);
+  border-radius: 10px;
+  padding: 2px 10px;
+  font-weight: 700;
+}
+.badge.livelive {
+  color: #0f1317;
+  background: var(--down);
+  border-radius: 10px;
+  padding: 2px 10px;
+  font-weight: 700;
+}
+button.ghost {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--dim);
+  border-radius: 8px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+button.ghost:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.acct-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  font-family: Consolas, monospace;
+  font-size: 12px;
+}
+.acct-grid span:nth-child(odd) {
+  color: var(--dim);
+}
+.tablist {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  font-size: 12px;
+}
+.tabrow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--line);
+}
+.tabrow .wl-sym {
+  flex: 1;
+}
+#ticket .trow {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.side-btn {
+  flex: 1;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--dim);
+  padding: 4px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+}
+.side-btn.buy.active {
+  background: var(--up);
+  color: #0f1317;
+  border-color: var(--up);
+}
+.side-btn.sell.active {
+  background: var(--down);
+  color: #0f1317;
+  border-color: var(--down);
+}
+#ticket button[type="submit"] {
+  width: 100%;
+  padding: 6px 0;
+  cursor: pointer;
+}
+#ticket button[type="submit"]:disabled {
+  opacity: 0.5;
+}
+.smallrow {
+  font-size: 11px;
+  margin-bottom: 5px;
+}
+#broker-body {
+  margin-bottom: 8px;
+}
+#broker-body .sym-field {
+  margin-bottom: 5px;
+}
+.auth-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 320px;
+  padding: 14px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.auth-btns {
+  display: flex;
+  gap: 6px;
+}
+.auth-btns button {
+  flex: 1;
+  padding: 5px 0;
+  cursor: pointer;
+}
+#dialog-confirm .info {
+  font-family: Consolas, monospace;
+  font-weight: 700;
+  user-select: all;
+}

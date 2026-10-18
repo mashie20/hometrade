@@ -76,6 +76,8 @@ async function load(symbol, interval) {
   state.header = data.header;
   $("symbol-btn").textContent = `${data.header.exchange}:${data.header.symbol}`;
   $("interval-btn").textContent = data.header.interval;
+  const tkSymbol = document.getElementById("tk-symbol");
+  if (tkSymbol) tkSymbol.value = data.header.key;
   renderLegend();
   renderSymbolInfo();
   syncUrl(data.viewState);
@@ -378,6 +380,8 @@ function ingestMarketTick(d) {
     repaint();
   }
   if (state.header && d.symbol === state.header.key) flashPanel("m-price");
+  // account panel: held positions update live PnL off the same tick stream
+  updatePositionPnl(d.symbol, d.price);
 }
 
 function wsFootprint() {
@@ -616,3 +620,432 @@ load(
   u.searchParams.get("symbol") ?? "COINBASE:BTCUSDT",
   u.searchParams.get("interval") ?? "1m",
 );
+
+// ================= auth + real-order ticket (Supabase + Alpaca) ==============
+
+const authState = { user: null, configured: false, mode: "paper" };
+let brokerLoop = null;
+let pendingOrder = null;
+
+function clientConfirmText(o) {
+  // MUST stay identical to server's expectedConfirmText(); the gate is exact
+  const q = String(Number(o.qty));
+  const sym = String(o.symbol).toUpperCase();
+  const head = authState.mode === "live" ? "CONFIRM LIVE" : "CONFIRM";
+  return `${head} ${String(o.side).toUpperCase()} ${q} ${sym}${
+    o.type === "limit" ? ` LIMIT ${Number(o.limitPrice).toFixed(2)}` : " MKT"
+  }`;
+}
+
+function renderAuthChip() {
+  const chip = $("auth-chip");
+  if (!state.server) return; // Pages demo has no backend auth
+  chip.classList.remove("hidden");
+  if (authState.user) {
+    chip.innerHTML = `<span class="who">${(authState.user.email ?? "").split("@")[0]}</span>
+      <span class="badge ${authState.mode === "live" ? "livelive" : "paper"}" id="mode-badge">${authState.mode.toUpperCase()}</span>
+      <button id="signout" class="ghost">logout</button>`;
+    $("signout").addEventListener("click", doLogout);
+  } else {
+    chip.innerHTML = `<button id="auth-open" class="ghost">sign in · create account</button>`;
+    $("auth-open").addEventListener("click", openAuthDialog);
+  }
+  const ticket = $("ticket");
+  if (authState.user) ticket.classList.remove("hidden");
+  document.getElementById("auth-open2").style.display = authState.user
+    ? "none"
+    : "";
+}
+
+function openAuthDialog() {
+  $("dialog-auth").classList.remove("hidden");
+  $("auth-email").focus();
+}
+function closeAuthDialog() {
+  $("dialog-auth").classList.add("hidden");
+}
+$("auth-open").addEventListener("click", openAuthDialog);
+document.getElementById("auth-open2").addEventListener("click", openAuthDialog);
+$("auth-cancel").addEventListener("click", closeAuthDialog);
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    closeAuthDialog();
+    $("dialog-confirm").classList.add("hidden");
+  }
+});
+function authMsg(text) {
+  $("auth-msg").textContent = text;
+}
+async function submitAuth(kind) {
+  const email = $("auth-email").value.trim();
+  const pass = $("auth-pass").value;
+  if (!email || !pass) return authMsg("email and password are both required");
+  authMsg(kind === "register" ? "creating account…" : "signing in…");
+  try {
+    const r = await (
+      await fetch(`/api/auth/${kind === "register" ? "register" : "login"}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password: pass,
+          name: $("auth-name").value.trim(),
+        }),
+      })
+    ).json();
+    if (!r.ok) return authMsg(r.error ?? "failed");
+    if (r.needsConfirm) {
+      authMsg(r.message ?? "check your email to confirm, then sign in");
+      return;
+    }
+    authState.user = r.user ?? { email };
+    closeAuthDialog();
+    renderAuthChip();
+    beginBrokerLoop();
+    toast({ title: "signed in", body: r.user?.email ?? "" });
+  } catch (e) {
+    authMsg(`network error: ${e && e.message}`);
+  }
+}
+$("auth-login").addEventListener("click", () => submitAuth("login"));
+$("auth-register").addEventListener("click", () => {
+  $("auth-name").classList.remove("hidden");
+  submitAuth("register");
+});
+async function doLogout() {
+  await fetch("/api/auth/logout", { method: "POST" });
+  authState.user = null;
+  renderAuthChip();
+  $("broker-body").innerHTML =
+    `<button id="auth-open2" class="ghost dim">sign in to see your account</button>`;
+  document
+    .getElementById("auth-open2")
+    .addEventListener("click", openAuthDialog);
+  $("positions").innerHTML = "<li class='dim'>—</li>";
+  $("orders").innerHTML = "<li class='dim'>—</li>";
+  $("broker-chip").classList.add("hidden");
+  $("ticket").classList.add("hidden");
+  if (brokerLoop) clearInterval(brokerLoop);
+}
+
+// ---- broker panel ----
+function money(v, cur = "USD") {
+  const n = Number(v ?? 0);
+  const abs = n.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${n < 0 ? "-" : ""}$${abs}${cur !== "USD" ? ` ${cur}` : ""}`;
+}
+
+function renderBrokerBody(o) {
+  const chip = $("broker-chip");
+  chip.classList.remove("hidden");
+  chip.textContent = o.mode === "live" ? "LIVE" : "PAPER";
+  chip.className = `badge ${o.mode === "live" ? "livelive" : "paper"}`;
+  authState.mode = o.mode;
+  const mb = document.getElementById("mode-badge");
+  if (mb) mb.textContent = o.mode.toUpperCase();
+
+  const a = o.account;
+  $("broker-body").innerHTML = a
+    ? `<div class="acct-grid">
+        <span>status</span><span>${a.status ?? "—"}</span>
+        <span>cash</span><span id="acct-cash">${money(a.cash, a.currency)}</span>
+        <span>equity</span><span id="acct-eq">${money(a.equity, a.currency)}</span>
+        <span>buying power</span><span id="acct-bp">${money(a.buyingPower, a.currency)}</span>
+      </div>
+      <div class="dim smallrow">broker: Alpaca · mode: ${o.mode} · order gate: typed confirmation</div>`
+    : `<div class="dim">account unreachable — broker error</div>`;
+}
+
+function renderPositions(positions) {
+  const ul = $("positions");
+  if (!positions.length) {
+    ul.innerHTML = "<li class='dim'>no open positions</li>";
+    return;
+  }
+  ul.innerHTML = positions
+    .map(
+      (p) =>
+        `<li class="tabrow" data-pos="${p.symbol}" data-avg="${p.avgPrice}" data-qty="${p.qty}">
+          <span class="wl-sym">${p.symbol}</span>
+          <span class="dim">${p.qty} @ ${fmtP(p.avgPrice)}</span>
+          <span class="chg" data-pnl>·</span>
+        </li>`,
+    )
+    .join("");
+  // seed last price from daily bars; live ticks take over from here
+  positions.forEach(async (p) => {
+    try {
+      const res = await fetch(
+        `/api/bars?symbol=${encodeURIComponent("YAHOO:" + p.symbol)}&interval=1d&limit=2`,
+      );
+      const d = await res.json();
+      const last = d.series?.at?.(-1)?.close;
+      if (last) updatePositionPnl(p.symbol, last);
+    } catch {}
+  });
+}
+
+function updatePositionPnl(symbol, price) {
+  const row = document.querySelector(`#positions li[data-pos="${symbol}"]`);
+  if (!row) return;
+  const avg = Number(row.dataset.avg ?? 0);
+  const qty = Number(row.dataset.qty ?? 0);
+  const pnl = (price - avg) * qty;
+  const pct = avg ? ((price - avg) / avg) * 100 : 0;
+  const el = row.querySelector("[data-pnl]");
+  el.textContent = `${money(pnl)} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
+  el.className = `chg ${pnl >= 0 ? "up" : "down"}`;
+}
+
+const OPEN_STATUS = new Set(["pending_new", "new", "partially_filled"]);
+function renderOrders(orders) {
+  const ul = $("orders");
+  if (!orders.length) {
+    ul.innerHTML = "<li class='dim'>no orders yet</li>";
+    return;
+  }
+  ul.innerHTML = orders
+    .slice(0, 12)
+    .map((o) => {
+      const open = OPEN_STATUS.has(o.status);
+      const fill =
+        o.status === "filled" && o.filledAvgPrice
+          ? `fill ${fmtP(o.filledAvgPrice)}`
+          : open
+            ? `<button class="ghost xbtn" data-oid="${o.externalId ?? ""}">cancel</button>`
+            : "";
+      return `<li class="tabrow">
+        <span class="wl-sym">${o.side?.toUpperCase()} ${o.qty} ${o.symbol}</span>
+        <span class="badge ${open ? "poll" : o.status === "rejected" ? "demo" : "live"}">${o.status}</span>
+        <span class="dim">${fill}</span>
+      </li>`;
+    })
+    .join("");
+  document.querySelectorAll("#orders .xbtn").forEach((b) =>
+    b.addEventListener("click", async (e) => {
+      const oid = e.target.dataset.oid;
+      if (!oid) return;
+      const r = await (
+        await fetch("/api/broker/cancel", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: oid }),
+        })
+      ).json();
+      toast({
+        title: r.ok ? "cancel sent" : "cancel failed",
+        body: r.error ?? "",
+      });
+      refreshBroker();
+    }),
+  );
+}
+
+function renderKeysForm(o) {
+  $("broker-body").innerHTML = `
+    <div class="info">
+      <div class="hint">real orders need an Alpaca account. free paper keys:
+        <a href="https://alpaca.markets" target="_blank" rel="noopener">alpaca.markets</a>
+        — paste them here; they stay on this machine (data/keys.json)</div>
+      <input id="kb-key" class="sym-field" placeholder="APCA-API-KEY-ID" autocomplete="off" />
+      <input id="kb-secret" class="sym-field" type="password" placeholder="APCA-API-SECRET-KEY" autocomplete="off" />
+      <div class="trow">
+        <select id="kb-mode" class="tsmall">
+          <option value="paper">paper</option>
+          <option value="live">live</option>
+        </select>
+        <button id="kb-save" class="ghost">save keys</button>
+      </div>
+      <input id="kb-ack" class="sym-field hidden" type="text" placeholder='type "LIVE FUNDS" to enable live mode' />
+      <div id="kb-msg" class="dim smallrow"></div>
+    </div>`;
+  const modeSel = document.getElementById("kb-mode");
+  const ack = document.getElementById("kb-ack");
+  modeSel.addEventListener("change", () =>
+    ack.classList.toggle("hidden", modeSel.value !== "live"),
+  );
+  document.getElementById("kb-save").addEventListener("click", async () => {
+    const r = await (
+      await fetch("/api/broker/keys", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          key: document.getElementById("kb-key").value,
+          secret: document.getElementById("kb-secret").value,
+          mode: modeSel.value,
+          liveAck: ack.value,
+        }),
+      })
+    ).json();
+    const msg = document.getElementById("kb-msg");
+    if (r.ok) {
+      msg.textContent = `keys saved (${r.mode}) — opening trading…`;
+      refreshBroker();
+    } else msg.textContent = r.error ?? "failed to save keys";
+  });
+}
+
+let brokerBusy = false;
+async function refreshBroker() {
+  if (!authState.user || brokerBusy) return;
+  brokerBusy = true;
+  try {
+    const o = await (await fetch("/api/broker/overview")).json();
+    if (!o.configured) {
+      renderKeysForm(o);
+      const chip = $("broker-chip");
+      chip.classList.remove("hidden");
+      chip.textContent = "NO KEYS";
+      chip.className = "badge demo";
+      authState.configured = false;
+      authState.mode = "paper";
+      $("positions").innerHTML = "<li class='dim'>—</li>";
+      $("orders").innerHTML = "<li class='dim'>—</li>";
+      $("tk-note").textContent = "add Alpaca keys to enable real orders";
+      return;
+    }
+    authState.configured = true;
+    renderBrokerBody(o);
+    renderPositions(o.positions ?? []);
+    renderOrders(o.orders ?? []);
+    refreshEst();
+    $("tk-note").textContent =
+      o.mode === "live" ? "LIVE mode — real money at risk" : "";
+  } catch {
+    /* transient */
+  } finally {
+    brokerBusy = false;
+  }
+}
+
+function beginBrokerLoop() {
+  if (brokerLoop) clearInterval(brokerLoop);
+  refreshBroker();
+  brokerLoop = setInterval(refreshBroker, 8000);
+}
+
+// ---- order ticket ----
+function lastPriceFor(sym) {
+  if (state.header?.key === sym) return state.series.at(-1)?.close ?? null;
+  const row = document.querySelector(
+    `#watchlist li[data-sym="${sym}"] .wl-price`,
+  );
+  if (row) {
+    const n = Number(String(row.textContent).replace(/[^0-9.]/g, ""));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  return null;
+}
+function refreshEst() {
+  const sym = $("tk-symbol").value.trim().toUpperCase();
+  const qty = Number($("tk-qty").value);
+  const px = lastPriceFor(sym);
+  $("tk-est").textContent =
+    Number.isFinite(qty) && qty > 0 && px
+      ? `est: ${money(qty * px)} @ last ${fmtP(px)}`
+      : "est: —";
+}
+["tk-qty", "tk-limit", "tk-type"].forEach((id) =>
+  $(id).addEventListener("input", refreshEst),
+);
+$("tk-type").addEventListener("change", () => {
+  $("tk-limit").classList.toggle("hidden", $("tk-type").value !== "limit");
+  refreshEst();
+});
+$("tk-symbol").addEventListener("input", refreshEst);
+["tk-buy", "tk-sell"].forEach((id) =>
+  $(id).addEventListener("click", () => {
+    $("tk-buy").classList.add("active");
+    $("tk-sell").classList.remove("active");
+    if (id === "tk-sell") {
+      $("tk-sell").classList.add("active");
+      $("tk-buy").classList.remove("active");
+    }
+    refreshEst();
+  }),
+);
+
+$("ticket").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (!authState.user) return openAuthDialog();
+  if (!authState.configured) {
+    toast({ title: "keys needed", body: "add Alpaca keys first" });
+    return;
+  }
+  const symbol = $("tk-symbol").value.trim().toUpperCase();
+  const qty = Number($("tk-qty").value);
+  const type = $("tk-type").value;
+  const limitPrice = type === "limit" ? Number($("tk-limit").value) : null;
+  if (!symbol || !(qty > 0)) {
+    toast({
+      title: "ticket incomplete",
+      body: "symbol and quantity are required",
+    });
+    return;
+  }
+  pendingOrder = {
+    symbol,
+    side: $("tk-sell").classList.contains("active") ? "sell" : "buy",
+    qty,
+    type,
+    limitPrice,
+  };
+  pendingOrder.expected = clientConfirmText(pendingOrder);
+  $("cf-summary").textContent = pendingOrder.expected;
+  $("cf-echo").value = "";
+  $("dialog-confirm").classList.remove("hidden");
+  $("cf-echo").focus();
+});
+$("cf-cancel").addEventListener("click", () =>
+  $("dialog-confirm").classList.add("hidden"),
+);
+$("cf-go").addEventListener("click", async () => {
+  if (!pendingOrder) return;
+  if ($("cf-echo").value.trim() !== pendingOrder.expected) {
+    $("cf-summary").textContent = "typed text did not match — try again";
+    return;
+  }
+  $("dialog-confirm").classList.add("hidden");
+  $("tk-place").disabled = true;
+  try {
+    const r = await (
+      await fetch("/api/broker/order", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...pendingOrder,
+          confirmText: $("cf-echo").value.trim(),
+        }),
+      })
+    ).json();
+    if (r.ok) {
+      toast({
+        title: `order ${r.order.status}`,
+        body: `${String(r.order.side).toUpperCase()} ${r.order.qty} ${r.order.symbol} @ ${r.order.mode || authState.mode}`,
+      });
+    } else {
+      toast({ title: "order rejected", body: r.error ?? "broker error" });
+    }
+  } catch (e) {
+    toast({ title: "network error", body: e && e.message });
+  } finally {
+    $("tk-place").disabled = false;
+    pendingOrder = null;
+    refreshBroker();
+  }
+});
+
+// boot auth silently
+if (state.server) {
+  (async () => {
+    try {
+      const r = await (await fetch("/api/auth/me")).json();
+      authState.user = r.user;
+      renderAuthChip();
+      if (authState.user) beginBrokerLoop();
+    } catch {}
+  })();
+}

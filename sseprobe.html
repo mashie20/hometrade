@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+  <head>
+    <title>probe</title>
+  </head>
+  <body>
+    <div id="log">booting…</div>
+    <script>
+      const log = document.getElementById("log");
+      const es = new EventSource("/events");
+      let n = 0;
+      es.onopen = () => (log.textContent += " OPEN");
+      es.onerror = () => (log.textContent += " ERR");
+      es.addEventListener("market_tick", () => {
+        n += 1;
+        document.title = `TICKS=${n}`;
+        log.textContent = "market_tick x" + n;
+      });
+      es.addEventListener("tick", () => (log.textContent += " ws"));
+    </script>
+  </body>
+</html>
