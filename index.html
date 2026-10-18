@@ -19,6 +19,16 @@
       <div id="conn-badge" class="badge">REST</div>
     </header>
 
+    <section id="metrics">
+      <div class="metric" id="m-price" title="Last price">—</div>
+      <div class="metric chg" id="m-chg" title="Change vs previous bar">—</div>
+      <div class="metric dim" id="m-hilo" title="Range of loaded window">
+        H — L —
+      </div>
+      <div class="metric dim" id="m-vol" title="Volume of last bar">V —</div>
+      <div class="metric dim" id="m-src" title="Data source & cadence">—</div>
+    </section>
+
     <main id="layout">
       <nav id="toolrail" aria-label="tools">
         <button title="Alerts: add price-cross rule" data-tool="alert">
@@ -95,8 +105,48 @@
         <ul id="alerts"></ul>
         <div class="panel-title">Annotations</div>
         <ul id="annotations"></ul>
+        <div class="panel-title">Strategy Lab (paper-only)</div>
+        <div id="lab" class="info">
+          <div class="lab-row">
+            <select id="lab-strategy">
+              <option value="sma_cross">SMA cross</option>
+              <option value="rsi_revert">RSI revert</option>
+            </select>
+            <button id="lab-run" type="button">run</button>
+          </div>
+          <div class="lab-row dim" title="commission per side, in basis points">
+            cost
+            <input
+              id="lab-cost"
+              type="number"
+              value="2.5"
+              step="0.25"
+              min="0"
+            />
+            slip
+            <input
+              id="lab-slip"
+              type="number"
+              value="1.5"
+              step="0.25"
+              min="0"
+            />
+            bps
+          </div>
+          <div id="lab-out" class="dim">
+            runs the HR-07 kill-list harness on the loaded view — research only,
+            not investment advice
+          </div>
+        </div>
       </aside>
     </main>
+
+    <footer id="statusbar">
+      <span id="sb-src">—</span>
+      <span id="sb-tick">no ticks yet</span>
+      <span id="sb-bars"></span>
+      <span id="sb-universe"></span>
+    </footer>
 
     <div id="toasts"></div>
     <script type="module" src="./app.js"></script>
