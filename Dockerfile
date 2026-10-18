@@ -1,4 +1,4 @@
-# hometrade — local-first autonomous charting terminal (runtime image)
+# hometrade — local-first trading terminal (runtime image: auth + real orders)
 FROM node:22-alpine
 
 # zero external npm deps: only node + the app files are needed

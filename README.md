@@ -1,13 +1,17 @@
-# hometrade — local-first autonomous charting terminal (cleanroom build)
+# hometrade — local-first trading terminal (cleanroom build)
 
 Original code, branding, and design. Public-domain charting concepts only; market
 data comes from free, keyless, publicly documented exchange endpoints. No
 third-party proprietary wire formats, assets, or names are used.
 
+**v0.3.0 — fully functional app:** email accounts (Supabase Auth + Postgres with
+owner-scoped RLS), a real broker order ticket (Alpaca; PAPER default), typed
+confirmation on every order, positions/orders/account panels on live ticks.
+
 **Live static demo (sample data):** <https://mashie20.github.io/hometrade/>
 (GitHub Pages serves no API, so the UI runs in clearly-labelled `DEMO` mode with
-deterministic synthetic candles. All real fetching happens in the local server
-below.)
+deterministic synthetic candles. Auth/trading are hidden there on purpose.)
+All real fetching happens in the local server below.
 
 ## 1-step commands
 
@@ -30,6 +34,51 @@ Data source is selectable via `HOMETRADE_SOURCE`:
 ```bash
 HOMETRADE_SOURCE=BINANCE npm start   # optional
 ```
+
+## Accounts & real orders (v0.3.0)
+
+**Backend: Supabase** (`https://edbiogqsytkhbmohacqa.supabase.co`). Auth is
+Supabase email+password; trading book tables (`profiles`, `accounts`, `orders`,
+`positions`) plus `watchlists`/`alerts`/`annotations` live in Postgres with
+**row-level security**: every policy is owner-scoped (`auth.uid() = user_id`)
+with `WITH CHECK` on writes, `anon` has zero grants, and the browser never sees
+any key besides the publishable one.
+
+- `POST /api/auth/register|login`, `POST /api/auth/logout`, `GET /api/auth/me`
+  — the access+refresh tokens ride an **HttpOnly** cookie; the server rotates
+  them transparently near expiry (the browser-side JS never touches tokens).
+- Every user-scoped API call forwards the **user's own access token** to
+  PostgREST, so the database itself enforces ownership — the server holds no
+  secret key and never bypasses RLS.
+
+**Broker: Alpaca** (real market data, real order lifecycle, no money at risk in
+paper mode). Keys live **only on the machine** (`HOMETRADE_ALPACA_KEY` /
+`HOMETRADE_ALPACA_SECRET` env, or `data/keys.json` saved from the ACCOUNT
+panel — gitignored, never in the image or the repo):
+
+```bash
+# free paper keys: alpaca.markets (Account -> API keys)
+export HOMETRADE_ALPACA_KEY=AKXXXXXXXX
+export HOMETRADE_ALPACA_SECRET=XXXXXXXX
+npm start
+# or paste them in the ACCOUNT panel after signing in
+```
+
+- Base URLs: `paper` → `paper-api.alpaca.markets`, `live` → `api.alpaca.markets`
+  (only settable with a typed `LIVE FUNDS` acknowledgment; **LIVE is real money
+  and ships locked behind keys you supply**).
+- **Every order needs an exact typed confirmation line** (HR-01 gate), e.g.
+  `CONFIRM BUY 5 YAHOO:AAPL MKT` / `CONFIRM LIVE SELL 2.5 YAHOO:MSFT LIMIT 521.30`
+  — the server recomputes it, compares timing-safely, and rejects mismatches
+  before the broker sees anything.
+- Order flow: ticket → confirmation → `orders` row in Postgres (`pending_new`,
+  with the confirmation snapshot) → Alpaca (`client_order_id` = our order id) →
+  broker fills reconciled back into `orders`/`positions` rows → position
+  symbols join the live quote poller so PnL ticks with the market.
+- Rejected orders keep the broker's error verbatim on the row and the toast.
+- The MCP surface gained `broker_status` + `broker_account` (READ-ONLY on
+  purpose: agents can see the book, but placing orders stays behind the UI's
+  typed gate).
 
 ## Live dashboard & the whole market
 
@@ -57,7 +106,7 @@ HOMETRADE_SOURCE=BINANCE npm start   # optional
 
 ```text
 static/           UI: canvas chart (chart.js), terminal behaviors (app.js),
-                  demo-data.js (offline sample generator), original CSS
+                  auth + order ticket + account panels, demo-data.js, original CSS
 src/
   time.js         interval catalog + UTC bucketing rules (minutes to 1M)
   aggregation.js  OHLCV bucketing invariants
@@ -70,6 +119,8 @@ src/
   view.js         pure viewport math (layout, price/time mapping)
   alerts.js       price-cross alert engine (fire once, explicit re-arm)
   books.js        annotations + watchlists
+  supabase.js     Supabase REST client: auth + PostgREST with the user's bearer
+  broker.js       Alpaca adapter: paper/live bases, order payloads, mapping
   server.js       localhost HTTP terminal (API + SSE) on 127.0.0.1:4444
   mcp_server.js   agent surface (MCP stdio JSON-RPC 2.0)
 tests/            TDD-first node:test suites + perf gates
@@ -78,7 +129,8 @@ tests/            TDD-first node:test suites + perf gates
 ## Agent surface (MCP)
 
 Tools: `load_symbol`, `get_bars`, `add_alert`, `list_alerts`, `delete_alert`,
-`rearm_alert`, `annotate`, `query_annotations`, `save_watchlist`, `get_watchlists`.
+`rearm_alert`, `annotate`, `query_annotations`, `save_watchlist`, `get_watchlists`,
+`broker_status`, `broker_account`.
 
 Point any MCP client (e.g., OpenCode) at:
 
@@ -93,6 +145,9 @@ browser panel and fires to both surfaces (SSE toast / MCP output).
 
 - Bar caches: `data/bars/EXCHANGE/TICKER/INTERVAL.jsonl` (append-only, atomic write)
 - State: `data/alerts.json`, `data/annotations.json`, `data/watchlists.json`
+- Secrets: `data/keys.json` (Alpaca) is machine-local and gitignored; Supabase
+  user data lives in the hosted Postgres (owner-scoped RLS), everything else
+  stays on disk
 - Offline: previously loaded symbols/intervals render from cache; new ones need network
 - Quote mapping: Coinbase spot products are USD-quoted; `COINBASE:TICKERUSDT`
   keys map to `TICKER-USD` natively, `1M` is rejected (exchange granularity policy)
@@ -100,12 +155,13 @@ browser panel and fires to both surfaces (SSE toast / MCP output).
 ## Run in Docker
 
 ```bash
-docker build -t hometrade:0.1.0 .
+docker build -t hometrade:0.3.0 .
 docker run -d --name hometrade --restart unless-stopped \
   -p 8890:8890 \
   -v "$(pwd)/data:/app/data" \
-  hometrade:0.1.0
+  hometrade:0.3.0
 # terminal: http://127.0.0.1:8890
+# broker keys (optional): -e HOMETRADE_ALPACA_KEY=… -e HOMETRADE_ALPACA_SECRET=…
 ```
 
 The image binds `0.0.0.0` inside the container (`HOMETRADE_HOST=0.0.0.0`); native

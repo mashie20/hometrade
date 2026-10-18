@@ -1,10 +1,10 @@
 {
   "name": "hometrade",
-  "version": "0.1.0",
-  "description": "Local-first autonomous charting terminal with an agent MCP surface (cleanroom build)",
+  "version": "0.3.0",
+  "description": "Local-first trading terminal: whole-market live view, Supabase accounts (RLS), Alpaca real-order ticket with typed confirmation (cleanroom build)",
   "type": "module",
   "scripts": {
-    "test": "node --test tests/aggregation.test.js tests/indicators.test.js tests/store.test.js tests/alerts.test.js tests/session.test.js tests/feed.test.js tests/exchanges.test.js tests/mcp.test.js tests/demo.test.js tests/perf.test.js tests/lab.test.js tests/market.test.js",
+    "test": "node --test tests/aggregation.test.js tests/indicators.test.js tests/store.test.js tests/alerts.test.js tests/session.test.js tests/feed.test.js tests/exchanges.test.js tests/mcp.test.js tests/demo.test.js tests/perf.test.js tests/lab.test.js tests/market.test.js tests/supabase.test.js tests/broker.test.js",
     "start": "node src/server.js",
     "mcp": "node src/mcp_server.js"
   },

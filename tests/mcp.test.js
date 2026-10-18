@@ -202,9 +202,29 @@ test("stdio frame protocol: newline-delimited JSON-RPC round trip via real child
   });
   child.kill();
   assert.ok(
-    collect.some(
-      (m) => m.id === 1 && m.result.serverInfo.name === "hometrade",
-    ),
+    collect.some((m) => m.id === 1 && m.result.serverInfo.name === "hometrade"),
   );
   assert.ok(collect.some((m) => m.id === 2 && m.result.tools.length >= 7));
+});
+
+test("broker tools: status is honest when unconfigured; account reports keys requirement", async () => {
+  const srv = createMcpServer({
+    sessionFactory: () => FakeFeed({ "BINANCE:BTCUSDT": [] }).asSession(),
+    env: {},
+    keysFile: "Z:/definitely/not/here/keys.json",
+  });
+  const missing = await rpc(srv, {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "tools/call",
+    params: { name: "broker_status", arguments: {} },
+  });
+  assert.match(missing.result.content[0].text, /not configured/);
+  const acct = await rpc(srv, {
+    jsonrpc: "2.0",
+    id: 2,
+    method: "tools/call",
+    params: { name: "broker_account", arguments: {} },
+  });
+  assert.match(acct.result.content[0].text, /not configured/);
 });

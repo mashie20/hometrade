@@ -17,6 +17,9 @@
       <button id="interval-btn" title="Change interval">1m</button>
       <div class="spacer"></div>
       <div id="conn-badge" class="badge">REST</div>
+      <div id="auth-chip" class="chip hidden">
+        <button id="auth-open" class="ghost">sign in · create account</button>
+      </div>
     </header>
 
     <section id="metrics">
@@ -84,6 +87,69 @@
       </section>
 
       <aside id="sidepanel">
+        <div class="panel-title">
+          Account <span id="broker-chip" class="badge hidden"></span>
+        </div>
+        <div id="broker-body" class="info">
+          <button id="auth-open2" class="ghost dim">
+            sign in to see your account
+          </button>
+        </div>
+
+        <div class="panel-title">Order ticket</div>
+        <form id="ticket" class="info hidden">
+          <div class="trow">
+            <input
+              id="tk-symbol"
+              class="tfield"
+              placeholder="EXCHANGE:TICKER"
+              spellcheck="false"
+            />
+          </div>
+          <div class="trow">
+            <button type="button" id="tk-buy" class="side-btn buy active">
+              BUY
+            </button>
+            <button type="button" id="tk-sell" class="side-btn sell">
+              SELL
+            </button>
+            <select id="tk-type" class="tsmall">
+              <option value="market">market</option>
+              <option value="limit">limit</option>
+            </select>
+          </div>
+          <div class="trow">
+            <input
+              id="tk-qty"
+              class="tfield"
+              type="number"
+              step="0.01"
+              min="0.01"
+              placeholder="qty"
+            />
+            <input
+              id="tk-limit"
+              class="tfield hidden"
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="limit px"
+            />
+          </div>
+          <div id="tk-est" class="dim smallrow">est: —</div>
+          <button type="submit" id="tk-place">place order</button>
+          <div id="tk-note" class="dim smallrow"></div>
+        </form>
+
+        <div class="panel-title">Positions</div>
+        <ul id="positions" class="tablist">
+          <li class="dim">—</li>
+        </ul>
+        <div class="panel-title">Orders</div>
+        <ul id="orders" class="tablist">
+          <li class="dim">—</li>
+        </ul>
+
         <div class="panel-title">Watchlist</div>
         <ul id="watchlist"></ul>
         <div class="panel-title">Symbol</div>
@@ -147,6 +213,62 @@
       <span id="sb-bars"></span>
       <span id="sb-universe"></span>
     </footer>
+
+    <div id="dialog-auth" class="dialog hidden">
+      <div class="auth-box">
+        <div class="iv-head">hometrade account</div>
+        <input
+          id="auth-email"
+          class="sym-field"
+          type="email"
+          placeholder="email"
+          autocomplete="username"
+        />
+        <input
+          id="auth-pass"
+          class="sym-field"
+          type="password"
+          placeholder="password (8+ chars)"
+          autocomplete="current-password"
+        />
+        <input
+          id="auth-name"
+          class="sym-field hidden"
+          type="text"
+          placeholder="display name"
+          autocomplete="name"
+        />
+        <div class="hint" id="auth-msg">
+          real orders run through Alpaca — paper mode first
+        </div>
+        <div class="auth-btns">
+          <button id="auth-login" type="button">sign in</button>
+          <button id="auth-register" type="button">create account</button>
+          <button id="auth-cancel" type="button" class="ghost">esc</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="dialog-confirm" class="dialog hidden">
+      <div class="auth-box">
+        <div class="iv-head">type-to-confirm the order</div>
+        <div id="cf-summary" class="info">—</div>
+        <input
+          id="cf-echo"
+          class="sym-field"
+          placeholder="retype the order line exactly"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <div class="hint">
+          this typed gate is required for every real order — no exceptions
+        </div>
+        <div class="auth-btns">
+          <button id="cf-go" type="button">send to broker</button>
+          <button id="cf-cancel" type="button" class="ghost">esc</button>
+        </div>
+      </div>
+    </div>
 
     <div id="toasts"></div>
     <script type="module" src="./app.js"></script>

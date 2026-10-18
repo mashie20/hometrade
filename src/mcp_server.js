@@ -5,10 +5,12 @@
 import { createInterface } from "node:readline";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readFile as fsReadFile } from "node:fs/promises";
 import { AlertsEngine } from "./alerts.js";
 import { AnnotationBook, Watchlists } from "./books.js";
 import { JsonRepo } from "./store.js";
 import { CandleSession } from "./session.js";
+import { resolveAlpacaKeys, createAlpacaBroker } from "./broker.js";
 
 const PROTOCOL_VERSION = "2025-06-18";
 
@@ -113,6 +115,18 @@ const TOOLS = [
     description: "List saved watchlists.",
     inputSchema: { type: "object", properties: {} },
   },
+  {
+    name: "broker_status",
+    description:
+      "Report whether real-order Alpaca keys are configured (paper default). READ-ONLY: never returns secrets; order placement stays behind the typed-confirmation gate in the web UI.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "broker_account",
+    description:
+      "READ-ONLY broker snapshot: account status/cash/equity, open positions, open-order count via Alpaca (paper first). No order placement from MCP by design.",
+    inputSchema: { type: "object", properties: {} },
+  },
 ];
 
 export function createMcpServer({
@@ -120,6 +134,8 @@ export function createMcpServer({
   alertsRepo,
   annotationsRepo,
   watchlistsRepo,
+  env = process.env,
+  keysFile,
   log,
 } = {}) {
   const sudoLog = log ?? (() => {});
@@ -222,6 +238,61 @@ export function createMcpServer({
       case "get_watchlists":
         await watchlists._sync();
         return txt(JSON.stringify(watchlists.all()));
+      case "broker_status": {
+        const keys = await resolveAlpacaKeys({
+          env,
+          readFile: keysFile ? () => fsReadFile(keysFile, "utf8") : null,
+        });
+        if (!keys)
+          return txt(
+            "broker not configured — add Alpaca keys via env (HOMETRADE_ALPACA_KEY/HOMETRADE_ALPACA_SECRET) or data/keys.json; paper mode until keys say otherwise",
+          );
+        return txt(
+          `alpaca ${keys.mode} active — key ${keys.key.slice(0, 6)}…; real orders require the typed-confirmation gate in the web UI (HR-01); MCP stays read-only`,
+        );
+      }
+      case "broker_account": {
+        const keys = await resolveAlpacaKeys({
+          env,
+          readFile: keysFile ? () => fsReadFile(keysFile, "utf8") : null,
+        });
+        if (!keys) return txt("broker not configured");
+        const bk = createAlpacaBroker({ keys });
+        const [acc, positions, orders] = await Promise.all([
+          bk.getAccount().catch((e) => ({ error: e.message })),
+          bk.listPositions().catch((e) => ({ error: e.message })),
+          bk
+            .listOrders({ status: "open", limit: 50 })
+            .catch((e) => ({ error: e.message })),
+        ]);
+        return txt(
+          JSON.stringify(
+            {
+              mode: keys.mode,
+              account:
+                acc && !acc.error
+                  ? {
+                      status: acc.status,
+                      cash: acc.cash,
+                      equity: acc.equity,
+                      buyingPower: acc.buying_power,
+                    }
+                  : acc,
+              positions: Array.isArray(positions)
+                ? positions.map((p) => ({
+                    symbol: p.symbol,
+                    qty: +p.qty,
+                    avg: +p.avg_entry_price,
+                    pnl: +p.unrealized_pl,
+                  }))
+                : positions,
+              openOrders: Array.isArray(orders) ? orders.length : orders,
+            },
+            null,
+            1,
+          ),
+        );
+      }
       default:
         throw new Error(`unknown tool ${name}`);
     }
