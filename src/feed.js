@@ -9,6 +9,7 @@ import {
   granularitySeconds,
 } from "./exchanges.js";
 import { isInterval } from "./time.js";
+import { yahooChartUrl, normalizeYahooChart } from "./market.js";
 
 export function buildKlinesUrl(symbolKey, interval, limit = 1000) {
   const info = resolveSymbol(symbolKey);
@@ -20,6 +21,9 @@ export function buildKlinesUrl(symbolKey, interval, limit = 1000) {
   if (info.exchange === "COINBASE") {
     const sec = granularitySeconds("COINBASE", interval);
     return `https://api.exchange.coinbase.com/products/${native}/candles?granularity=${sec}`;
+  }
+  if (info.exchange === "YAHOO") {
+    return yahooChartUrl(symbolKey, interval);
   }
   // BINANCE (and any future URL-shaped source): klines shape
   const url = new URL("https://api.binance.com/api/v3/klines");
@@ -43,6 +47,10 @@ export function normalizeSourceRows(url, rows) {
         volume: +r[5],
       }))
       .sort((a, b) => a.openTime - b.openTime);
+  }
+  if (/finance\.yahoo\.com\/v8\/finance\/chart/.test(url)) {
+    // Yahoo replies with a chart document, not row arrays
+    return normalizeYahooChart(rows);
   }
   // binance klines: [ openTime, o, h, l, c, v, ... ]
   return rows.map((k) => ({

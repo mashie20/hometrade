@@ -25,6 +25,22 @@ export const EXCHANGES = {
       "1d": 86400,
     },
   },
+  YAHOO: {
+    // whole US-market equities universe (NYSE/NASDAQ/AMEX) via the keyless
+    // public chart endpoint; near-real-time by short-cadence polling.
+    displayName: "Yahoo Finance (public, keyless, equities universe)",
+    native: (ticker) => ticker.replace(/\./g, "-").toUpperCase(),
+    intervals: {
+      "1m": 60,
+      "5m": 300,
+      "15m": 900,
+      "30m": 1800,
+      "1h": 3600,
+      "1d": 86400,
+      "1w": 604800,
+      "1M": 2592000,
+    },
+  },
 };
 
 function tickerToProduct(ticker) {
@@ -47,7 +63,13 @@ export function resolveSymbol(symbolKey) {
     throw new Error(
       `unknown exchange ${exchange} (supported: ${Object.keys(EXCHANGES).join(", ")})`,
     );
-  return { exchange, ticker, displayName: ticker, key: symbolKey };
+  return {
+    exchange,
+    ticker,
+    displayName: ticker,
+    native: EXCHANGES[exchange].native(ticker),
+    key: symbolKey,
+  };
 }
 
 export function sourceIntervalsFor(exchange) {

@@ -31,6 +31,28 @@ Data source is selectable via `HOMETRADE_SOURCE`:
 HOMETRADE_SOURCE=BINANCE npm start   # optional
 ```
 
+## Live dashboard & the whole market
+
+- **Crypto (real-time):** Coinbase public `ticker` websocket streams trades;
+  server aggregates into candles and pushes SSE `tick` events to every page.
+- **US equities (near-real-time):** every symbol in the Nasdaq Trader SymDir
+  universe (`nasdaqlisted.txt` + `otherlisted.txt`, **~13k listed names** cached
+  24h in `data/universe.json`) is loadable as `YAHOO:<TICKER>` through the
+  keyless public chart endpoint. A server-side poller paces upstream calls
+  (main symbol ≈ every 3s, one rotating watch row per tick) and pushes SSE
+  `market_tick` events — badges: `LIVE` (websocket) vs `POLL` (few-second
+  cadence). Equities quotes are as fresh as a keyless public feed can be;
+  nothing here is investment advice and there is no order routing.
+- **Search:** type a ticker (e.g. `AAPL`, `SPY`, or `MSFT`) — bare USDT/USD
+  quotes route to Coinbase, everything else to the equities universe;
+  `/api/symbols?query=AAP` returns ranked matches across the whole market.
+- **Strategy Lab (paper-only):** `POST /api/lab` runs a rule against the loaded
+  series through our HR-07 kill-list harness — closed-bar signals with
+  next-open fills + slippage, 70/30 train/holdout evaluated exactly once,
+  parameter-plateau neighbors on train data, capacity vs observed bar volume,
+  and an honest `PASS`/`KILL` verdict with failing hurdle IDs. The UI card
+  labels it research-only.
+
 ## Architecture
 
 ```text

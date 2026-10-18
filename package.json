@@ -4,7 +4,7 @@
   "description": "Local-first autonomous charting terminal with an agent MCP surface (cleanroom build)",
   "type": "module",
   "scripts": {
-    "test": "node --test tests/aggregation.test.js tests/indicators.test.js tests/store.test.js tests/alerts.test.js tests/session.test.js tests/feed.test.js tests/exchanges.test.js tests/mcp.test.js tests/demo.test.js tests/perf.test.js",
+    "test": "node --test tests/aggregation.test.js tests/indicators.test.js tests/store.test.js tests/alerts.test.js tests/session.test.js tests/feed.test.js tests/exchanges.test.js tests/mcp.test.js tests/demo.test.js tests/perf.test.js tests/lab.test.js tests/market.test.js",
     "start": "node src/server.js",
     "mcp": "node src/mcp_server.js"
   },

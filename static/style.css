@@ -270,3 +270,113 @@ ul {
   color: var(--dim);
   font-size: 12px;
 }
+
+/* ---- live dashboard chrome ---- */
+#metrics {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  padding: 8px 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.metric {
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 20px;
+  font-weight: 600;
+}
+.metric.up {
+  color: var(--up);
+}
+.metric.down {
+  color: var(--down);
+}
+.metric.dim,
+.metric.chg {
+  font-size: 14px;
+  font-weight: 500;
+}
+.metric.chg.up {
+  color: var(--up);
+}
+.metric.chg.down {
+  color: var(--down);
+}
+#m-src {
+  color: var(--dim);
+  font-size: 12px;
+  font-weight: 400;
+}
+.badge.live {
+  color: #0f1317;
+  background: var(--up);
+  border-radius: 10px;
+  padding: 2px 10px;
+}
+.badge.poll {
+  color: #0f1317;
+  background: #e3b341;
+  border-radius: 10px;
+  padding: 2px 10px;
+}
+.badge.demo {
+  color: #0f1317;
+  background: var(--accent);
+  border-radius: 10px;
+  padding: 2px 10px;
+}
+#watchlist li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  cursor: pointer;
+}
+#watchlist .wl-sym {
+  flex: 1;
+}
+#watchlist .wl-price {
+  font-family: Consolas, monospace;
+}
+.flash {
+  animation: hometrade-flash 0.6s ease-out;
+}
+@keyframes hometrade-flash {
+  0% {
+    background: rgba(88, 166, 255, 0.35);
+  }
+  100% {
+    background: transparent;
+  }
+}
+#statusbar {
+  display: flex;
+  gap: 18px;
+  padding: 4px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--dim);
+  font-size: 11px;
+  font-family: Consolas, monospace;
+}
+.lab-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.lab-row input {
+  width: 64px;
+}
+.lab-verdict.pass {
+  color: var(--up);
+  font-weight: 700;
+}
+.lab-verdict.kill {
+  color: var(--down);
+  font-weight: 700;
+}
+#lab-out {
+  font-size: 11px;
+  line-height: 1.5;
+}
