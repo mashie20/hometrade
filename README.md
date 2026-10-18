@@ -75,6 +75,21 @@ browser panel and fires to both surfaces (SSE toast / MCP output).
 - Quote mapping: Coinbase spot products are USD-quoted; `COINBASE:TICKERUSDT`
   keys map to `TICKER-USD` natively, `1M` is rejected (exchange granularity policy)
 
+## Run in Docker
+
+```bash
+docker build -t hometrade:0.1.0 .
+docker run -d --name hometrade --restart unless-stopped \
+  -p 8890:8890 \
+  -v "$(pwd)/data:/app/data" \
+  hometrade:0.1.0
+# terminal: http://127.0.0.1:8890
+```
+
+The image binds `0.0.0.0` inside the container (`HOMETRADE_HOST=0.0.0.0`); native
+runs default to loopback (`127.0.0.1`) — set `HOMETRADE_HOST` to change. Bar caches
+persist in the mounted `data` volume (local-first, survives container restarts).
+
 ## Deploying the static demo (GitHub Pages)
 
 `static/` is self-contained (relative asset paths, no server calls required).
