@@ -236,12 +236,18 @@ async function route(req, res) {
 }
 
 if (process.argv[1] && process.argv[1].endsWith("server.js")) {
-  createServer((req, res) => route(req, res)).listen(PORT, "127.0.0.1", () => {
+  // bind is loopback by default (local-first, safe); Docker image sets 0.0.0.0
+  const HOST = process.env.HOMETRADE_HOST ?? "127.0.0.1";
+  createServer((req, res) => route(req, res)).listen(PORT, HOST, () => {
     console.log(
-      `hometrade running: http://127.0.0.1:${PORT} (data: ${DATA_DIR})`,
+      `hometrade running: http://${HOST === "0.0.0.0" ? "127.0.0.1" : HOST}:${PORT} (data: ${DATA_DIR})`,
     );
   });
   process.on("SIGINT", () => {
+    feed.close();
+    process.exit(0);
+  });
+  process.on("SIGTERM", () => {
     feed.close();
     process.exit(0);
   });

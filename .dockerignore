@@ -1,0 +1,9 @@
+data/
+tests/
+*.log
+load_*.json
+.git/
+.gitignore
+node_modules/
+Dockerfile
+.dockerignore
