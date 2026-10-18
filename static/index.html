@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>hometrade</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header id="topbar">
+      <div class="brand"><span class="brand-mark">▿</span> hometrade</div>
+      <button id="symbol-btn" title="Change symbol">BTCUSDT</button>
+      <button id="interval-btn" title="Change interval">1m</button>
+      <div class="spacer"></div>
+      <div id="conn-badge" class="badge">REST</div>
+    </header>
+
+    <main id="layout">
+      <nav id="toolrail" aria-label="tools">
+        <button title="Alerts: add price-cross rule" data-tool="alert">
+          🔔
+        </button>
+        <button title="Annotate current view" data-tool="note">✎</button>
+        <button title="Save watchlist (current symbol)" data-tool="watch">
+          ≡
+        </button>
+      </nav>
+
+      <section id="chartwrap">
+        <div id="legend">—</div>
+        <canvas id="chart"></canvas>
+        <canvas id="overlay"></canvas>
+        <div id="dialog-sym" class="dialog hidden">
+          <input
+            id="sym-input"
+            class="sym-field"
+            placeholder="EXCHANGE:TICKER"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <datalist id="sym-suggestions"></datalist>
+          <div class="hint">
+            type <b>EXCHANGE:TICKER</b> · Enter commits · Esc cancels
+          </div>
+        </div>
+        <div id="dialog-iv" class="dialog hidden">
+          <div class="iv-group" data-row-group="minutes">
+            <div class="iv-head">Minutes</div>
+            <div class="iv-row" data-iv="1m">1 minute</div>
+            <div class="iv-row" data-iv="5m">5 minutes</div>
+            <div class="iv-row" data-iv="15m">15 minutes</div>
+            <div class="iv-row" data-iv="30m">30 minutes</div>
+          </div>
+          <div class="iv-group" data-row-group="hours">
+            <div class="iv-head">Hours</div>
+            <div class="iv-row" data-iv="1h">1 hour</div>
+            <div class="iv-row" data-iv="4h">4 hours</div>
+            <div class="iv-row" data-iv="12h">12 hours</div>
+          </div>
+          <div class="iv-group" data-row-group="days">
+            <div class="iv-head">Days</div>
+            <div class="iv-row" data-iv="1d">1 day</div>
+            <div class="iv-row" data-iv="1w">1 week</div>
+          </div>
+          <div class="iv-group" data-row-group="months">
+            <div class="iv-head">Months</div>
+            <div class="iv-row" data-iv="1M">1 month</div>
+          </div>
+        </div>
+      </section>
+
+      <aside id="sidepanel">
+        <div class="panel-title">Watchlist</div>
+        <ul id="watchlist"></ul>
+        <div class="panel-title">Symbol</div>
+        <div id="symbol-info" class="info">—</div>
+        <div class="panel-title">Alerts</div>
+        <form id="alert-form">
+          <input
+            id="alert-price"
+            type="number"
+            step="any"
+            placeholder="price"
+          />
+          <select id="alert-kind">
+            <option value="above">above</option>
+            <option value="below">below</option>
+          </select>
+          <button type="submit">arm</button>
+        </form>
+        <ul id="alerts"></ul>
+        <div class="panel-title">Annotations</div>
+        <ul id="annotations"></ul>
+      </aside>
+    </main>
+
+    <div id="toasts"></div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
